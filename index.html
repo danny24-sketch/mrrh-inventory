@@ -415,7 +415,8 @@ $('addRow').addEventListener('click', async ()=>{
   const data = readForm();
   if(!data.name || !data.dept){ toast('Department/Section and Equipment Name are required.'); return; }
   const tempRef = 'local-' + Date.now();
-  const payload = { ...data, date: new Date().toISOString().slice(0,10), enteredBy: currentUser || 'Unknown' };
+  const clientId = 'c' + Date.now() + '-' + Math.random().toString(36).slice(2,9);
+  const payload = { ...data, date: new Date().toISOString().slice(0,10), enteredBy: currentUser || 'Unknown', clientId };
   const localItem = { ref: tempRef, ...payload };
   equipment.push(localItem);
   clearForm();
