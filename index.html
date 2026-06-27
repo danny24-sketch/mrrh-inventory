@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MRRH Biomedical Inventory</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#15263D">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+  :root{
+    --ink:#15263D; --slate:#44607A; --paper:#F7F5F0; --paper-2:#EFEBE2;
+    --amber:#D98E2B; --good:#2F7A4D; --alert:#B5482F; --line:#D8D3C5;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); -webkit-font-smoothing:antialiased;}
+  .app{max-width:1180px; margin:0 auto; padding:0 20px 80px;}
+
+  header{padding:22px 0 16px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap;}
+  .brand{display:flex; flex-direction:column; gap:2px;}
+  .brand .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--slate);}
+  .brand h1{margin:0; font-size:22px; font-weight:700; letter-spacing:-0.01em;}
+  .status{display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:12px; cursor:pointer;}
+  .pulse-wrap{width:70px; height:24px; overflow:hidden;}
+  .pulse-line{stroke:var(--good); stroke-width:2; fill:none;}
+  .pulse-line.off{stroke:var(--alert);}
+  .dot{width:8px; height:8px; border-radius:50%; background:var(--good);}
+  .dot.off{background:var(--alert);}
+  .user-badge{display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11.5px;}
+  .user-badge b{color:var(--ink);}
+  .user-badge button{font-family:var(--mono); font-size:10px; border:1px solid var(--line); background:#fff; padding:3px 8px; border-radius:3px; cursor:pointer; color:var(--slate);}
+
+  nav.tabs{display:flex; gap:2px; margin:18px 0; border-bottom:1px solid var(--line);}
+  nav.tabs button{font-family:var(--mono); font-size:12px; letter-spacing:.04em; text-transform:uppercase; background:none; border:none; padding:10px 16px; cursor:pointer; color:var(--slate); border-bottom:2px solid transparent; margin-bottom:-1px;}
+  nav.tabs button.active{color:var(--ink); border-bottom-color:var(--amber); font-weight:600;}
+  .panel{display:none;} .panel.active{display:block;}
+
+  .card{background:#fff; border:1px solid var(--line); border-radius:6px; padding:20px; margin-bottom:18px;}
+  .card h2{margin:0 0 14px; font-size:14px; font-family:var(--mono); text-transform:uppercase; letter-spacing:.08em; color:var(--slate); display:flex; align-items:center; gap:8px;}
+  .card h2 .n{background:var(--ink); color:var(--paper); font-size:11px; width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center;}
+
+  .grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px;}
+  .grid.cols-3{grid-template-columns:repeat(3,1fr);}
+  .grid.cols-2{grid-template-columns:repeat(2,1fr);}
+  @media (max-width:760px){ .grid,.grid.cols-3,.grid.cols-2{grid-template-columns:1fr 1fr;} }
+  @media (max-width:480px){ .grid,.grid.cols-3,.grid.cols-2{grid-template-columns:1fr;} }
+
+  label{display:block; font-size:11px; font-family:var(--mono); color:var(--slate); margin-bottom:4px; text-transform:uppercase; letter-spacing:.04em;}
+  input, select, textarea{width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:4px; font-family:var(--sans); font-size:13.5px; background:var(--paper); color:var(--ink);}
+  input:focus, select:focus{outline:2px solid var(--amber); outline-offset:1px; border-color:var(--amber);}
+  .field{margin-bottom:14px;}
+
+  .btn{font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.05em; padding:10px 18px; border-radius:4px; border:1px solid var(--ink); background:var(--ink); color:var(--paper); cursor:pointer;}
+  .btn:hover{background:var(--slate); border-color:var(--slate);}
+  .btn.ghost{background:none; color:var(--ink);}
+  .btn.ghost:hover{background:var(--ink); color:var(--paper);}
+  .btn.amber{background:var(--amber); border-color:var(--amber); color:#fff;}
+  .btn.amber:hover{background:#bf7c20;}
+  .btn-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:6px;}
+
+  .eq-row{display:grid; grid-template-columns: 1fr 1fr 34px 28px; gap:8px; align-items:center; padding:9px 4px; border-bottom:1px solid var(--paper-2); font-size:12.5px;}
+  .eq-row.head{font-family:var(--mono); font-size:10px; text-transform:uppercase; color:var(--slate); border-bottom:1px solid var(--line);}
+  .eq-row span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .ref-tag{font-family:var(--mono); font-weight:600; color:var(--slate); font-size:11px;}
+  .chip{display:inline-flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:11px; font-weight:700; width:24px; height:20px; border-radius:3px; color:#fff;}
+  .chip.A{background:var(--good);} .chip.B{background:#5C8A52;} .chip.C{background:var(--amber);}
+  .chip.D{background:var(--alert);} .chip.E{background:var(--slate);} .chip.F{background:#7A2E2E;}
+  .del-btn{background:none; border:none; color:var(--slate); cursor:pointer; font-size:14px;}
+  .del-btn:hover{color:var(--alert);}
+  .empty{text-align:center; padding:36px 10px; color:var(--slate); font-size:13px; border:1px dashed var(--line); border-radius:6px;}
+
+  table.dash{width:100%; border-collapse:collapse; font-size:12.5px;}
+  table.dash th{text-align:left; font-family:var(--mono); font-size:10px; text-transform:uppercase; color:var(--slate); padding:8px 6px; border-bottom:1px solid var(--line); white-space:nowrap;}
+  table.dash td{padding:8px 6px; border-bottom:1px solid var(--paper-2); white-space:nowrap;}
+  table.dash tr:hover td{background:var(--paper-2);}
+
+  .session-pick{display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--line); border-radius:4px; margin-bottom:6px; font-size:12.5px; background:var(--paper);}
+  .session-pick b{font-family:var(--mono);}
+  .session-pick .meta{color:var(--slate); margin-left:auto; font-size:11px; font-family:var(--mono);}
+
+  .toast{position:fixed; bottom:24px; right:24px; background:var(--ink); color:var(--paper); padding:12px 18px; border-radius:5px; font-family:var(--mono); font-size:12px; box-shadow:0 6px 18px rgba(0,0,0,.2); opacity:0; transform:translateY(8px); transition:.25s; pointer-events:none; max-width:280px;}
+  .toast.show{opacity:1; transform:translateY(0);}
+
+  /* Stats */
+  .stats-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+  @media (max-width:820px){ .stats-grid{grid-template-columns:1fr;} }
+  .stat-card{background:#fff; border:1px solid var(--line); border-radius:6px; padding:16px;}
+  .stat-card h3{margin:0 0 12px; font-size:11px; font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--slate);}
+  .num-cards{display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap;}
+  .num-card{flex:1; min-width:110px; background:#fff; border:1px solid var(--line); border-radius:6px; padding:14px 16px;}
+  .num-card .v{font-size:24px; font-weight:700; font-family:var(--mono);}
+  .num-card .l{font-size:10.5px; color:var(--slate); text-transform:uppercase; letter-spacing:.05em; font-family:var(--mono); margin-top:2px;}
+  .bars{display:flex; align-items:flex-end; gap:8px; height:130px; padding-top:10px;}
+  .bar-col{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:4px;}
+  .bar-val{font-size:10.5px; font-family:var(--mono); color:var(--ink);}
+  .bar{width:100%; border-radius:3px 3px 0 0; min-height:3px;}
+  .bar-label{font-size:9.5px; color:var(--slate); font-family:var(--mono); text-align:center; line-height:1.2; max-width:60px; overflow:hidden; text-overflow:ellipsis;}
+
+  .name-gate{position:fixed; inset:0; background:rgba(21,38,61,.55); display:flex; align-items:center; justify-content:center; z-index:50;}
+  .name-gate .box{background:#fff; padding:26px; border-radius:8px; max-width:320px; width:90%;}
+  .name-gate h3{margin:0 0 4px; font-size:15px;}
+  .name-gate p{font-size:12.5px; color:var(--slate); margin:0 0 14px;}
+</style>
+</head>
+<body>
+
+<div class="name-gate" id="nameGate">
+  <div class="box">
+    <h3>Who's entering data?</h3>
+    <p>This device will remember your name and auto-tag every item you log.</p>
+    <div class="field"><label>Your name</label><input id="gateNameInput" /></div>
+    <button class="btn amber" id="gateSave" style="width:100%;">Continue</button>
+  </div>
+</div>
+
+<div class="app">
+
+  <header>
+    <div class="brand">
+      <span class="eyebrow">MRRH Biomedical Workshop</span>
+      <h1>Equipment Inventory</h1>
+    </div>
+    <div style="display:flex; align-items:center; gap:18px;">
+      <div class="user-badge">
+        <span>Logged as <b id="currentUserLabel">—</b></span>
+        <button id="switchUserBtn">switch</button>
+      </div>
+      <div class="status" id="statusToggle" title="Click to simulate offline/online">
+        <div class="pulse-wrap">
+          <svg viewBox="0 0 70 24" width="70" height="24"><path id="pulsePath" class="pulse-line" d="M0,12 L18,12 L23,3 L28,20 L33,12 L70,12"/></svg>
+        </div>
+        <div class="dot" id="statusDot"></div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="active" data-tab="entry">New Entry</button>
+    <button data-tab="dashboard">Dashboard</button>
+    <button data-tab="export">Export</button>
+  </nav>
+
+  <!-- ENTRY -->
+  <div class="panel active" id="panel-entry">
+    <div class="card">
+      <h2>Equipment details</h2>
+      <div class="grid">
+        <div class="field"><label>Department/Section</label><input id="f_dept" /></div>
+        <div class="field"><label>Room</label><input id="f_room" /></div>
+        <div class="field"><label>Equipment Name</label><input id="f_name" /></div>
+        <div class="field">
+          <label>Eq. Type</label>
+          <select id="f_type">
+            <option value="ME">ME — Medical Equipment</option>
+            <option value="MF">MF — Medical Furniture</option>
+            <option value="MI">MI — Medical Instrument</option>
+            <option value="HP">HP — Hospital Plant</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="field"><label>Model</label><input id="f_model" /></div>
+        <div class="field"><label>Serial No.</label><input id="f_serial" /></div>
+        <div class="field"><label>Manufacturer</label><input id="f_mfr" /></div>
+        <div class="field"><label>Qty</label><input id="f_qty" type="number" min="1" value="1" /></div>
+      </div>
+      <div class="grid cols-3">
+        <div class="field"><label>Product Date</label><input id="f_pdate" placeholder="N/A" /></div>
+        <div class="field"><label>Engravement #</label><input id="f_engr" /></div>
+        <div class="field">
+          <label>Condition</label>
+          <select id="f_cond">
+            <option value="A">A — Good and in Use</option>
+            <option value="B">B — Functional, needs minor repair</option>
+            <option value="C">C — Not functional, repairable</option>
+            <option value="D">D — Not functional, unrepairable</option>
+            <option value="E">E — Not installed</option>
+            <option value="F">F — Missing or stolen</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Comment</label><input id="f_comment" /></div>
+      <div class="btn-row">
+        <button class="btn amber" id="addRow">+ Add equipment</button>
+        <button class="btn ghost" id="saveEdit" style="display:none;">Save changes</button>
+        <button class="btn ghost" id="cancelEdit" style="display:none;">Cancel</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Logged this session <span style="font-weight:400; text-transform:none; letter-spacing:0; color:var(--slate);" id="sessionCount"></span></h2>
+      <p style="font-size:11.5px; color:var(--slate); margin:-6px 0 10px;">Tap any row to edit it.</p>
+      <div class="eq-row head"><span>Equipment</span><span>Department</span><span>Cond.</span><span></span></div>
+      <div id="eqList"></div>
+      <div class="empty" id="eqEmpty">No equipment logged yet.</div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="panel" id="panel-dashboard">
+    <div class="num-cards" id="numCards"></div>
+    <div class="stats-grid">
+      <div class="stat-card"><h3>Condition breakdown</h3><div class="bars" id="condChart"></div></div>
+      <div class="stat-card"><h3>By department/section</h3><div class="bars" id="deptChart"></div></div>
+      <div class="stat-card"><h3>Entries per day</h3><div class="bars" id="trendChart"></div></div>
+    </div>
+
+    <div class="card">
+      <h2>All equipment <span style="font-weight:400; text-transform:none; letter-spacing:0;" id="filterInfo"></span></h2>
+      <div class="grid cols-3" style="margin-bottom:10px;">
+        <div class="field"><label>Filter by dept/section</label><select id="filterDept"><option value="">All</option></select></div>
+        <div class="field"><label>Filter by condition</label>
+          <select id="filterCond"><option value="">All</option><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="E">E</option><option value="F">F</option></select>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="dash">
+          <thead><tr><th>Ref</th><th>Date</th><th>Dept/Section</th><th>Room</th><th>Equipment</th><th>Type</th><th>Model</th><th>Serial No.</th><th>Mfr.</th><th>Qty</th><th>Cond.</th><th>Comment</th><th>Entered By</th><th></th></tr></thead>
+          <tbody id="dashBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPORT -->
+  <div class="panel" id="panel-export">
+    <div class="card">
+      <h2>Document header</h2>
+      <div class="grid cols-2">
+        <div class="field"><label>Health Facility</label><input id="exFacility" value="MRRH"></div>
+        <div class="field"><label>Address</label><input id="exAddress" value="Mbarara, Western Region, Uganda"></div>
+        <div class="field"><label>Inspector's Name</label><input id="exInspector" placeholder="e.g. MUGUME CHRIS"></div>
+        <div class="field"><label>Inventory Date</label><input id="exDate" type="date"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Select departments/sections to include</h2>
+      <div id="exportPicker" class="empty">No equipment logged yet.</div>
+      <div class="btn-row"><button class="btn ghost" id="selectAllDepts">Select all</button><button class="btn ghost" id="clearAllDepts">Clear</button></div>
+    </div>
+    <div class="card">
+      <h2>Generate document</h2>
+      <p style="font-size:13px; color:var(--slate); margin-top:0;">One continuous table, styled to match the existing MRRH inventory form — cyan header block, yellow type legend, green condition legend, dark header row.</p>
+      <div class="btn-row">
+        <button class="btn" id="exportExcel">Download Excel (.xls)</button>
+        <button class="btn amber" id="exportPdf">Download PDF</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+let equipment = [];
+let pendingSync = []; // {dbKey, payload} - entries/edits/deletes waiting to push, mirrored in IndexedDB
+let online = navigator.onLine;
+let currentUser = '';
+const $ = id => document.getElementById(id);
+const API_URL = 'https://script.google.com/macros/s/AKfycbwBnh_14zQQruru-hGo0ICM_Fgw5wp_cAOy358JJbqAnZcF7xJZvElfcao9DYQlWHttdw/exec';
+
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2600); }
+
+/* ===== IndexedDB: survives closing the tab/app, unlike plain JS arrays ===== */
+function idbOpen(){
+  return new Promise((res,rej)=>{
+    const req = indexedDB.open('mrrh_inventory_db', 1);
+    req.onupgradeneeded = ()=>{
+      const db = req.result;
+      if(!db.objectStoreNames.contains('equipment')) db.createObjectStore('equipment', {keyPath:'ref'});
+      if(!db.objectStoreNames.contains('pending')) db.createObjectStore('pending', {autoIncrement:true});
+    };
+    req.onsuccess = ()=>res(req.result);
+    req.onerror = ()=>rej(req.error);
+  });
+}
+async function idbPutEquipment(item){ const db=await idbOpen(); return new Promise((res,rej)=>{ const tx=db.transaction('equipment','readwrite'); tx.objectStore('equipment').put(item); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
+async function idbDeleteEquipment(ref){ const db=await idbOpen(); return new Promise((res,rej)=>{ const tx=db.transaction('equipment','readwrite'); tx.objectStore('equipment').delete(ref); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
+async function idbClearEquipment(){ const db=await idbOpen(); return new Promise((res,rej)=>{ const tx=db.transaction('equipment','readwrite'); tx.objectStore('equipment').clear(); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
+async function idbGetAllEquipment(){ const db=await idbOpen(); return new Promise((res,rej)=>{ const tx=db.transaction('equipment','readonly'); const req=tx.objectStore('equipment').getAll(); req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); }); }
+async function idbAddPending(payload){ const db=await idbOpen(); return new Promise((res,rej)=>{ const tx=db.transaction('pending','readwrite'); const req=tx.objectStore('pending').add(payload); req.onsuccess=()=>res(req.result); tx.onerror=()=>rej(tx.error); }); }
+async function idbDeletePending(key){ const db=await idbOpen(); return new Promise((res,rej)=>{ const tx=db.transaction('pending','readwrite'); tx.objectStore('pending').delete(key); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
+async function idbGetAllPending(){
+  const db = await idbOpen();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction('pending','readonly'); const store=tx.objectStore('pending'); const items=[];
+    const req = store.openCursor();
+    req.onsuccess = (e)=>{ const cur=e.target.result; if(cur){ items.push({dbKey:cur.key, payload:cur.value}); cur.continue(); } else res(items); };
+    req.onerror = ()=>rej(req.error);
+  });
+}
+
+/* Register service worker so the app shell itself loads with zero signal */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+}
+
+/* ---- Load real data: try the server first, fall back to local cache if offline ---- */
+async function loadFromServer(){
+  try{
+    const res = await fetch(API_URL + '?api=data');
+    const json = await res.json();
+    if(json.ok){
+      equipment = json.data.map(e=>({...e, qty: e.qty || 1}));
+      await idbClearEquipment();
+      for(const item of equipment) await idbPutEquipment(item);
+      renderEqList();
+      if(document.getElementById('panel-dashboard').classList.contains('active')) renderDashboard();
+      toast('Loaded ' + equipment.length + ' items from the sheet.');
+    } else {
+      toast('Server error loading data: ' + json.error);
+    }
+  } catch(err){
+    online = false; updateStatus();
+    const cached = await idbGetAllEquipment();
+    equipment = cached;
+    renderEqList();
+    toast(cached.length ? 'Offline — showing ' + cached.length + ' cached items.' : 'Offline — no cached data yet.');
+  }
+  await loadPendingFromIDB();
+}
+
+async function loadPendingFromIDB(){
+  pendingSync = await idbGetAllPending();
+  if(pendingSync.length && online) trySync();
+}
+
+/* ---- Push one entry/edit to the server ---- */
+async function pushToServer(payload){
+  const res = await fetch(API_URL, {
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'}, // avoids CORS preflight on Apps Script
+    body: JSON.stringify(payload)
+  });
+  const json = await res.json();
+  if(!json.ok) throw new Error(json.error || 'Unknown server error');
+  return json;
+}
+
+/* ---- Try to flush anything queued (persisted in IndexedDB, survives closing the app) ----
+   Note: this always actually attempts the network rather than trusting the `online` flag,
+   since browser online/offline events are unreliable on mobile and can leave the flag stuck. */
+async function trySync(){
+  if(pendingSync.length===0) return;
+  const queue = pendingSync.slice();
+  let failures = [];
+  let anySuccess = false;
+  for(const item of queue){
+    try{ await pushToServer(item.payload); await idbDeletePending(item.dbKey); anySuccess = true; }
+    catch(err){ failures.push(item); }
+  }
+  pendingSync = failures;
+  if(anySuccess) online = true;
+  else if(failures.length>0) online = false;
+  updateStatus();
+  if(failures.length===0 && anySuccess){ toast('All queued entries synced.'); loadFromServer(); }
+  else if(failures.length>0) toast(failures.length + ' item(s) still queued — will retry.');
+}
+setInterval(trySync, 8000); // check every 8s, well under the 30s requirement
+
+window.addEventListener('online', ()=>{ online=true; updateStatus(); trySync(); });
+window.addEventListener('offline', ()=>{ online=false; updateStatus(); });
+
+/* Name gate */
+$('gateSave').addEventListener('click', ()=>{
+  const n = $('gateNameInput').value.trim();
+  if(!n){ toast('Please enter your name.'); return; }
+  currentUser = n; $('currentUserLabel').textContent = n;
+  $('nameGate').style.display='none';
+});
+$('switchUserBtn').addEventListener('click', ()=>{ $('gateNameInput').value=currentUser; $('nameGate').style.display='flex'; });
+
+/* Tabs */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active'); $('panel-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='dashboard') renderDashboard();
+    if(btn.dataset.tab==='export') renderExportPicker();
+  });
+});
+
+/* Manual offline override (for testing in patchy wifi) */
+$('statusToggle').addEventListener('click', ()=>{
+  online = !online; updateStatus();
+  if(online){ toast('Marked online — syncing…'); trySync(); }
+  else toast('Marked offline — entries will queue locally.');
+});
+function updateStatus(){
+  $('statusDot').classList.toggle('off',!online);
+  $('pulsePath').classList.toggle('off',!online);
+}
+
+/* Add / Edit equipment */
+let editingRef = null;
+const FORM_IDS = ['f_dept','f_room','f_name','f_type','f_model','f_serial','f_mfr','f_qty','f_pdate','f_engr','f_cond','f_comment'];
+
+function readForm(){
+  return {
+    dept: $('f_dept').value.trim(), room: $('f_room').value || 'N/A', name: $('f_name').value.trim(),
+    type: $('f_type').value, model: $('f_model').value, serial: $('f_serial').value, mfr: $('f_mfr').value,
+    qty: $('f_qty').value || '1', pdate: $('f_pdate').value || 'N/A', engr: $('f_engr').value,
+    cond: $('f_cond').value, comment: $('f_comment').value
+  };
+}
+function clearForm(){ ['f_room','f_name','f_dept','f_model','f_serial','f_mfr','f_engr','f_comment'].forEach(id=>$(id).value=''); $('f_qty').value=1; }
+
+$('addRow').addEventListener('click', async ()=>{
+  const data = readForm();
+  if(!data.name || !data.dept){ toast('Department/Section and Equipment Name are required.'); return; }
+  const tempRef = 'local-' + Date.now();
+  const payload = { ...data, date: new Date().toISOString().slice(0,10), enteredBy: currentUser || 'Unknown' };
+  const localItem = { ref: tempRef, ...payload };
+  equipment.push(localItem);
+  clearForm();
+  renderEqList();
+  await idbPutEquipment(localItem);
+
+  if(online){
+    try{
+      const result = await pushToServer(payload);
+      await idbDeleteEquipment(tempRef);
+      localItem.ref = result.ref; // replace temp ref with the real server-assigned Ref Nr.
+      await idbPutEquipment(localItem);
+      renderEqList();
+      toast('Saved & synced (Ref ' + result.ref + ').');
+    } catch(err){
+      const dbKey = await idbAddPending(payload);
+      pendingSync.push({dbKey, payload});
+      toast('Could not reach server — queued locally.');
+      online = false; updateStatus();
+    }
+  } else {
+    const dbKey = await idbAddPending(payload);
+    pendingSync.push({dbKey, payload});
+    toast('Saved locally — will sync when online.');
+  }
+});
+
+$('saveEdit').addEventListener('click', async ()=>{
+  const data = readForm();
+  if(!data.name || !data.dept){ toast('Department/Section and Equipment Name are required.'); return; }
+  const item = equipment.find(e=>e.ref===editingRef);
+  if(!item){ exitEditMode(); return; }
+  Object.assign(item, data);
+  const ref = editingRef;
+  exitEditMode();
+  renderEqList();
+  await idbPutEquipment(item);
+
+  const payload = { action:'update', ref, ...data, date:item.date, enteredBy:item.enteredBy };
+  if(online){
+    try{ await pushToServer(payload); toast('Updated item #' + ref + ' on the sheet.'); }
+    catch(err){
+      const dbKey = await idbAddPending(payload);
+      pendingSync.push({dbKey, payload});
+      toast('Could not reach server — update queued.'); online=false; updateStatus();
+    }
+  } else {
+    const dbKey = await idbAddPending(payload);
+    pendingSync.push({dbKey, payload});
+    toast('Update queued — will sync when online.');
+  }
+});
+
+$('cancelEdit').addEventListener('click', exitEditMode);
+
+function enterEditMode(ref){
+  const item = equipment.find(e=>e.ref===ref);
+  if(!item) return;
+  editingRef = ref;
+  $('f_dept').value=item.dept; $('f_room').value=item.room; $('f_name').value=item.name;
+  $('f_type').value=item.type; $('f_model').value=item.model; $('f_serial').value=item.serial;
+  $('f_mfr').value=item.mfr; $('f_qty').value=item.qty; $('f_pdate').value=item.pdate;
+  $('f_engr').value=item.engr; $('f_cond').value=item.cond; $('f_comment').value=item.comment;
+  $('addRow').style.display='none'; $('saveEdit').style.display='inline-block'; $('cancelEdit').style.display='inline-block';
+  window.scrollTo({top:0, behavior:'smooth'});
+  toast('Editing item #' + ref + '.');
+}
+function exitEditMode(){
+  editingRef = null; clearForm();
+  $('addRow').style.display='inline-block'; $('saveEdit').style.display='none'; $('cancelEdit').style.display='none';
+}
+
+async function deleteItem(ref){
+  if(!confirm('Delete this item? This removes it from the sheet.')) return;
+  equipment = equipment.filter(x=>x.ref!==ref);
+  if(editingRef===ref) exitEditMode();
+  renderEqList();
+  renderDashTable();
+  await idbDeleteEquipment(ref);
+  const payload = { action:'delete', ref };
+  if(online){
+    try{ await pushToServer(payload); toast('Deleted item #' + ref + ' from the sheet.'); }
+    catch(err){
+      const dbKey = await idbAddPending(payload);
+      pendingSync.push({dbKey, payload});
+      toast('Could not reach server — delete queued.'); online=false; updateStatus();
+    }
+  } else {
+    const dbKey = await idbAddPending(payload);
+    pendingSync.push({dbKey, payload});
+    toast('Delete queued — will sync when online.');
+  }
+}
+
+function renderEqList(){
+  const list = $('eqList'); list.innerHTML='';
+  $('sessionCount').textContent = '(' + equipment.length + ' item' + (equipment.length!==1?'s':'') + ')';
+  $('eqEmpty').style.display = equipment.length ? 'none':'block';
+  equipment.slice().reverse().forEach(e=>{
+    const row = document.createElement('div'); row.className='eq-row'; row.style.cursor='pointer';
+    row.innerHTML = `<span>${e.name}</span><span>${e.dept}</span><span class="chip ${e.cond}">${e.cond}</span><button class="del-btn" data-ref="${e.ref}">✕</button>`;
+    row.addEventListener('click', (ev)=>{ if(ev.target.classList.contains('del-btn')) return; enterEditMode(e.ref); });
+    row.querySelector('.del-btn').addEventListener('click', (ev)=>{ ev.stopPropagation(); deleteItem(e.ref); });
+    list.appendChild(row);
+  });
+}
+
+/* Dashboard stats */
+function renderDashboard(){
+  const total = equipment.length;
+  const working = equipment.filter(e=>e.cond==='A').length;
+  const needsRepair = equipment.filter(e=>['B','C'].includes(e.cond)).length;
+  const dead = equipment.filter(e=>['D','F'].includes(e.cond)).length;
+  $('numCards').innerHTML = `
+    <div class="num-card"><div class="v">${total}</div><div class="l">Total items</div></div>
+    <div class="num-card"><div class="v" style="color:var(--good)">${working}</div><div class="l">Good / in use</div></div>
+    <div class="num-card"><div class="v" style="color:var(--amber)">${needsRepair}</div><div class="l">Needs repair</div></div>
+    <div class="num-card"><div class="v" style="color:var(--alert)">${dead}</div><div class="l">Unrepairable / missing</div></div>
+  `;
+
+  drawBars('condChart', ['A','B','C','D','E','F'].map(c=>({label:c, value:equipment.filter(e=>e.cond===c).length})),
+    {A:'#2F7A4D',B:'#5C8A52',C:'#D98E2B',D:'#B5482F',E:'#44607A',F:'#7A2E2E'});
+
+  const deptCounts = {};
+  equipment.forEach(e=>{ deptCounts[e.dept]=(deptCounts[e.dept]||0)+1; });
+  drawBars('deptChart', Object.entries(deptCounts).map(([label,value])=>({label,value})), null);
+
+  const dateCounts = {};
+  equipment.forEach(e=>{ dateCounts[e.date]=(dateCounts[e.date]||0)+1; });
+  const sortedDates = Object.keys(dateCounts).sort();
+  drawBars('trendChart', sortedDates.map(label=>({label, value:dateCounts[label]})), null);
+
+  const deptSel = $('filterDept'); const cur = deptSel.value;
+  deptSel.innerHTML = '<option value="">All</option>' + Object.keys(deptCounts).map(d=>`<option value="${d}">${d}</option>`).join('');
+  deptSel.value = cur;
+  renderDashTable();
+}
+$('filterDept').addEventListener('change', renderDashTable);
+$('filterCond').addEventListener('change', renderDashTable);
+
+function drawBars(elId, data, colorMap){
+  const el = $(elId);
+  if(data.length===0 || data.every(d=>d.value===0)){ el.innerHTML='<div style="color:var(--slate); font-size:11px; margin:auto;">No data yet</div>'; return; }
+  const max = Math.max(...data.map(d=>d.value), 1);
+  el.innerHTML = data.map(d=>{
+    const h = Math.max(4, Math.round((d.value/max)*100));
+    const color = colorMap ? (colorMap[d.label]||'#44607A') : '#15263D';
+    return `<div class="bar-col"><span class="bar-val">${d.value}</span><div class="bar" style="height:${h}px; background:${color};"></div><span class="bar-label">${d.label}</span></div>`;
+  }).join('');
+}
+
+function renderDashTable(){
+  const deptF = $('filterDept').value, condF = $('filterCond').value;
+  let rows = equipment.filter(e=> (!deptF||e.dept===deptF) && (!condF||e.cond===condF) );
+  $('filterInfo').textContent = '(' + rows.length + ' shown)';
+  $('dashBody').innerHTML = rows.map(e=>`<tr>
+    <td class="ref-tag">${e.ref}</td><td>${e.date}</td><td>${e.dept}</td><td>${e.room}</td><td>${e.name}</td>
+    <td>${e.type}</td><td>${e.model||'—'}</td><td>${e.serial||'—'}</td><td>${e.mfr||'—'}</td><td>${e.qty}</td>
+    <td><span class="chip ${e.cond}">${e.cond}</span></td><td>${e.comment||''}</td><td>${e.enteredBy}</td>
+    <td><button class="del-btn" data-ref="${e.ref}">✕</button></td>
+  </tr>`).join('') || `<tr><td colspan="14" style="text-align:center; color:var(--slate); padding:20px;">No equipment matches this filter.</td></tr>`;
+  $('dashBody').querySelectorAll('.del-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>deleteItem(isNaN(btn.dataset.ref) ? btn.dataset.ref : Number(btn.dataset.ref)));
+  });
+}
+
+/* Export picker */
+function renderExportPicker(){
+  const picker = $('exportPicker');
+  const depts = [...new Set(equipment.map(e=>e.dept))];
+  if(depts.length===0){ picker.className='empty'; picker.textContent='No equipment logged yet.'; return; }
+  picker.className='';
+  picker.innerHTML = depts.map(d=>{
+    const count = equipment.filter(e=>e.dept===d).length;
+    return `<label class="session-pick" style="cursor:pointer;"><input type="checkbox" class="deptCheck" value="${d}" checked style="width:auto;"> <b>${d}</b><span class="meta">${count} item${count!==1?'s':''}</span></label>`;
+  }).join('');
+}
+$('selectAllDepts').addEventListener('click', ()=>document.querySelectorAll('.deptCheck').forEach(c=>c.checked=true));
+$('clearAllDepts').addEventListener('click', ()=>document.querySelectorAll('.deptCheck').forEach(c=>c.checked=false));
+function getSelectedDepts(){ return Array.from(document.querySelectorAll('.deptCheck:checked')).map(c=>c.value); }
+
+const TYPE_LEGEND = 'ME = Medical Equipment | MF = Medical Furniture | MI = Medical Instrument | HP = Hospital Plant';
+const COND_LEGEND_1 = 'A = Good and in use | B = Functional needs repair | C = Not functional but repairable';
+const COND_LEGEND_2 = 'D = Not functional unrepairable | E = Not installed | F = Missing or stolen';
+
+/* Export: Excel via styled HTML table (.xls) so colors/borders survive in Excel */
+$('exportExcel').addEventListener('click', ()=>{
+  const depts = getSelectedDepts();
+  if(depts.length===0){ toast('Select at least one department/section.'); return; }
+  const rows = equipment.filter(e=>depts.includes(e.dept));
+  if(rows.length===0){ toast('No equipment in the selected departments.'); return; }
+
+  const facility = $('exFacility').value || 'MRRH';
+  const address = $('exAddress').value;
+  const inspector = $('exInspector').value;
+  const date = $('exDate').value || new Date().toISOString().slice(0,10);
+  const COLS = 15;
+  const td = (txt,extra='') => `<td style="border:1px solid #000; padding:4px 6px; font-family:Calibri; font-size:11pt; ${extra}">${txt||''}</td>`;
+  const cyanRow = (txt) => `<tr><td colspan="${COLS}" style="background:#00FFFF; border:1px solid #000; padding:4px 6px; font-family:Calibri; font-size:11pt;">${txt}</td></tr>`;
+
+  let html = `<html><head><meta charset="UTF-8"></head><body><table style="border-collapse:collapse;">`;
+  html += cyanRow('<b style="font-size:14pt;">MBARARA REGIONAL REFERRAL HOSPITAL</b>');
+  html += cyanRow('Medical Equipment Inventory Form');
+  html += cyanRow('MRRH Biomedical Workshop');
+  html += cyanRow('');
+  html += cyanRow('<b>INVENTORY INFORMATION</b>');
+  html += cyanRow('Health Facility: ' + facility);
+  html += cyanRow('Address: ' + address);
+  html += cyanRow('Inventory Date: ' + date);
+  html += cyanRow("Inspector's Name: " + inspector);
+  html += `<tr><td colspan="${COLS}" style="border:1px solid #000; padding:2px;"></td></tr>`;
+  html += `<tr><td colspan="${COLS}" style="background:#FFFF00; border:1px solid #000; padding:4px 6px; font-family:Calibri; font-size:10pt;"><b>EQUIPMENT TYPE LEGEND:</b> ${TYPE_LEGEND}</td></tr>`;
+  html += `<tr><td colspan="${COLS}" style="background:#00FF00; border:1px solid #000; padding:4px 6px; font-family:Calibri; font-size:10pt;"><b>CONDITION CODES:</b> ${COND_LEGEND_1}</td></tr>`;
+  html += `<tr><td colspan="${COLS}" style="background:#00FF00; border:1px solid #000; padding:4px 6px; font-family:Calibri; font-size:10pt;">${COND_LEGEND_2}</td></tr>`;
+  html += `<tr><td colspan="${COLS}" style="border:1px solid #000; padding:2px;"></td></tr>`;
+
+  const headers = ['Ref Nr.','Date','Department/Section','Room','Equipment Name','E.q. Type','Model','Serial No.','Manufacturer','Qty','Product Date','Engravement Number','Condition','Comment','User Name'];
+  html += '<tr>' + headers.map(h=>`<td style="background:#404040; color:#fff; border:1px solid #000; padding:5px 6px; font-family:Calibri; font-size:10.5pt;"><b>${h}</b></td>`).join('') + '</tr>';
+
+  rows.forEach(e=>{
+    html += '<tr>' + [td(e.ref),td(e.date),td(e.dept),td(e.room),td(e.name),td(e.type),td(e.model),td(e.serial),td(e.mfr),td(e.qty),td(e.pdate),td(e.engr),td(e.cond),td(e.comment),td(e.enteredBy)].join('') + '</tr>';
+  });
+  html += '</table></body></html>';
+
+  const blob = new Blob([html], {type:'application/vnd.ms-excel'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'MRRH_Inventory_' + new Date().toISOString().slice(0,10) + '.xls';
+  link.click();
+  toast('Excel file downloaded.');
+});
+
+/* Export: PDF matching the same color blocks */
+$('exportPdf').addEventListener('click', ()=>{
+  const depts = getSelectedDepts();
+  if(depts.length===0){ toast('Select at least one department/section.'); return; }
+  const rows = equipment.filter(e=>depts.includes(e.dept));
+  if(rows.length===0){ toast('No equipment in the selected departments.'); return; }
+
+  const facility = $('exFacility').value || 'MRRH';
+  const address = $('exAddress').value;
+  const inspector = $('exInspector').value;
+  const date = $('exDate').value || new Date().toISOString().slice(0,10);
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({orientation:'landscape', unit:'pt', format:'a4'});
+  const W = doc.internal.pageSize.getWidth();
+  let y = 20;
+
+  function block(h, color, lines){
+    doc.setFillColor(...color);
+    doc.rect(30, y, W-60, h, 'F');
+    doc.setDrawColor(0); doc.rect(30, y, W-60, h);
+    let ly = y + 13;
+    lines.forEach(l=>{ doc.setFont('helvetica', l.bold?'bold':'normal'); doc.setFontSize(l.size||9); doc.setTextColor(0,0,0); doc.text(l.text, 36, ly); ly += (l.size||9)+4; });
+    y += h + 2;
+  }
+
+  block(40, [0,255,255], [
+    {text:'MBARARA REGIONAL REFERRAL HOSPITAL', bold:true, size:13},
+    {text:'Medical Equipment Inventory Form', size:9},
+    {text:'MRRH Biomedical Workshop', size:9}
+  ]);
+  block(46, [0,255,255], [
+    {text:'Health Facility: '+facility, size:8.5},
+    {text:'Address: '+address, size:8.5},
+    {text:'Inventory Date: '+date, size:8.5},
+    {text:"Inspector's Name: "+inspector, size:8.5}
+  ]);
+  block(13, [255,255,0], [{text:'EQUIPMENT TYPE LEGEND:  '+TYPE_LEGEND, bold:true, size:8}]);
+  block(13, [0,255,0], [{text:'CONDITION CODES:  '+COND_LEGEND_1, bold:true, size:8}]);
+  block(13, [0,255,0], [{text:COND_LEGEND_2, size:8}]);
+  y += 4;
+
+  const body = rows.map(e=>[e.ref,e.date,e.dept,e.room,e.name,e.type,e.model,e.serial,e.mfr,e.qty,e.pdate,e.engr,e.cond,e.comment,e.enteredBy]);
+  doc.autoTable({
+    startY: y,
+    head: [['Ref','Date','Dept/Section','Room','Equipment','Type','Model','Serial No.','Mfr.','Qty','Prod. Date','Engr. #','Cond.','Comment','Entered By']],
+    body, styles:{fontSize:7, cellPadding:3, lineColor:[0,0,0], lineWidth:0.5},
+    headStyles:{fillColor:[64,64,64], textColor:255, fontStyle:'bold'},
+    theme:'grid'
+  });
+
+  doc.save('MRRH_Inventory_' + new Date().toISOString().slice(0,10) + '.pdf');
+  toast('PDF downloaded.');
+});
+
+updateStatus();
+$('exDate').value = new Date().toISOString().slice(0,10);
+loadFromServer();
+</script>
+</body>
+</html>
