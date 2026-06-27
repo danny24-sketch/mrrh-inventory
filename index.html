@@ -64,7 +64,7 @@
   .btn.amber:hover{background:#bf7c20;}
   .btn-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:6px;}
 
-  .eq-row{display:grid; grid-template-columns: 1fr 1fr 34px 28px; gap:8px; align-items:center; padding:9px 4px; border-bottom:1px solid var(--paper-2); font-size:12.5px;}
+  .eq-row{display:grid; grid-template-columns: 1fr 1fr 40px; gap:8px; align-items:center; padding:9px 4px; border-bottom:1px solid var(--paper-2); font-size:12.5px;}
   .eq-row.head{font-family:var(--mono); font-size:10px; text-transform:uppercase; color:var(--slate); border-bottom:1px solid var(--line);}
   .eq-row span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .ref-tag{font-family:var(--mono); font-weight:600; color:var(--slate); font-size:11px;}
@@ -196,7 +196,7 @@
     <div class="card">
       <h2>Logged this session <span style="font-weight:400; text-transform:none; letter-spacing:0; color:var(--slate);" id="sessionCount"></span></h2>
       <p style="font-size:11.5px; color:var(--slate); margin:-6px 0 10px;">Tap any row to edit it.</p>
-      <div class="eq-row head"><span>Equipment</span><span>Department</span><span>Cond.</span><span></span></div>
+      <div class="eq-row head"><span>Equipment</span><span>Department</span><span>Cond.</span></div>
       <div id="eqList"></div>
       <div class="empty" id="eqEmpty">No equipment logged yet.</div>
     </div>
@@ -221,7 +221,7 @@
       </div>
       <div style="overflow-x:auto;">
         <table class="dash">
-          <thead><tr><th>Ref</th><th>Date</th><th>Dept/Section</th><th>Room</th><th>Equipment</th><th>Type</th><th>Model</th><th>Serial No.</th><th>Mfr.</th><th>Qty</th><th>Cond.</th><th>Comment</th><th>Entered By</th><th></th></tr></thead>
+          <thead><tr><th>Ref</th><th>Date</th><th>Dept/Section</th><th>Room</th><th>Equipment</th><th>Type</th><th>Model</th><th>Serial No.</th><th>Mfr.</th><th>Qty</th><th>Cond.</th><th>Comment</th><th>Entered By</th></tr></thead>
           <tbody id="dashBody"></tbody>
         </table>
       </div>
@@ -488,37 +488,14 @@ function exitEditMode(){
   $('addRow').style.display='inline-block'; $('saveEdit').style.display='none'; $('cancelEdit').style.display='none';
 }
 
-async function deleteItem(ref){
-  if(!confirm('Delete this item? This removes it from the sheet.')) return;
-  equipment = equipment.filter(x=>x.ref!==ref);
-  if(editingRef===ref) exitEditMode();
-  renderEqList();
-  renderDashTable();
-  await idbDeleteEquipment(ref);
-  const payload = { action:'delete', ref };
-  if(online){
-    try{ await pushToServer(payload); toast('Deleted item #' + ref + ' from the sheet.'); }
-    catch(err){
-      const dbKey = await idbAddPending(payload);
-      pendingSync.push({dbKey, payload});
-      toast('Could not reach server — delete queued.'); online=false; updateStatus();
-    }
-  } else {
-    const dbKey = await idbAddPending(payload);
-    pendingSync.push({dbKey, payload});
-    toast('Delete queued — will sync when online.');
-  }
-}
-
 function renderEqList(){
   const list = $('eqList'); list.innerHTML='';
   $('sessionCount').textContent = '(' + equipment.length + ' item' + (equipment.length!==1?'s':'') + ')';
   $('eqEmpty').style.display = equipment.length ? 'none':'block';
   equipment.slice().reverse().forEach(e=>{
     const row = document.createElement('div'); row.className='eq-row'; row.style.cursor='pointer';
-    row.innerHTML = `<span>${e.name}</span><span>${e.dept}</span><span class="chip ${e.cond}">${e.cond}</span><button class="del-btn" data-ref="${e.ref}">✕</button>`;
-    row.addEventListener('click', (ev)=>{ if(ev.target.classList.contains('del-btn')) return; enterEditMode(e.ref); });
-    row.querySelector('.del-btn').addEventListener('click', (ev)=>{ ev.stopPropagation(); deleteItem(e.ref); });
+    row.innerHTML = `<span>${e.name}</span><span>${e.dept}</span><span class="chip ${e.cond}">${e.cond}</span>`;
+    row.addEventListener('click', ()=>enterEditMode(e.ref));
     list.appendChild(row);
   });
 }
@@ -575,11 +552,7 @@ function renderDashTable(){
     <td class="ref-tag">${e.ref}</td><td>${e.date}</td><td>${e.dept}</td><td>${e.room}</td><td>${e.name}</td>
     <td>${e.type}</td><td>${e.model||'—'}</td><td>${e.serial||'—'}</td><td>${e.mfr||'—'}</td><td>${e.qty}</td>
     <td><span class="chip ${e.cond}">${e.cond}</span></td><td>${e.comment||''}</td><td>${e.enteredBy}</td>
-    <td><button class="del-btn" data-ref="${e.ref}">✕</button></td>
-  </tr>`).join('') || `<tr><td colspan="14" style="text-align:center; color:var(--slate); padding:20px;">No equipment matches this filter.</td></tr>`;
-  $('dashBody').querySelectorAll('.del-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>deleteItem(isNaN(btn.dataset.ref) ? btn.dataset.ref : Number(btn.dataset.ref)));
-  });
+  </tr>`).join('') || `<tr><td colspan="13" style="text-align:center; color:var(--slate); padding:20px;">No equipment matches this filter.</td></tr>`;
 }
 
 /* Export picker */
@@ -692,29 +665,31 @@ $('exportPdf').addEventListener('click', ()=>{
   const W = doc.internal.pageSize.getWidth();
   let y = 20;
 
-  function block(h, color, lines){
+  function block(color, lines){
+    const pad = 5, lineHeight = 13;
+    const h = pad*2 + lines.length*lineHeight;
     doc.setFillColor(...color);
     doc.rect(30, y, W-60, h, 'F');
     doc.setDrawColor(0); doc.rect(30, y, W-60, h);
-    let ly = y + 13;
-    lines.forEach(l=>{ doc.setFont('helvetica', l.bold?'bold':'normal'); doc.setFontSize(l.size||9); doc.setTextColor(0,0,0); doc.text(l.text, 36, ly); ly += (l.size||9)+4; });
-    y += h + 2;
+    let ly = y + pad + 9;
+    lines.forEach(l=>{ doc.setFont('helvetica', l.bold?'bold':'normal'); doc.setFontSize(l.size||9); doc.setTextColor(0,0,0); doc.text(l.text, 36, ly); ly += lineHeight; });
+    y += h + 3;
   }
 
-  block(40, [0,255,255], [
+  block([0,255,255], [
     {text:'MBARARA REGIONAL REFERRAL HOSPITAL', bold:true, size:13},
     {text:'Medical Equipment Inventory Form', size:9},
     {text:'MRRH Biomedical Workshop', size:9}
   ]);
-  block(46, [0,255,255], [
+  block([0,255,255], [
     {text:'Health Facility: '+facility, size:8.5},
     {text:'Address: '+address, size:8.5},
     {text:'Inventory Date: '+date, size:8.5},
     {text:"Inspector's Name: "+inspector, size:8.5}
   ]);
-  block(13, [255,255,0], [{text:'EQUIPMENT TYPE LEGEND:  '+TYPE_LEGEND, bold:true, size:8}]);
-  block(13, [0,255,0], [{text:'CONDITION CODES:  '+COND_LEGEND_1, bold:true, size:8}]);
-  block(13, [0,255,0], [{text:COND_LEGEND_2, size:8}]);
+  block([255,255,0], [{text:'EQUIPMENT TYPE LEGEND:  '+TYPE_LEGEND, bold:true, size:8}]);
+  block([0,255,0], [{text:'CONDITION CODES:  '+COND_LEGEND_1, bold:true, size:8}]);
+  block([0,255,0], [{text:COND_LEGEND_2, size:8}]);
   y += 4;
 
   const body = rows.map(e=>[e.ref,e.date,e.dept,e.room,e.name,e.type,e.model,e.serial,e.mfr,e.qty,e.pdate,e.engr,e.cond,e.comment,e.enteredBy]);
