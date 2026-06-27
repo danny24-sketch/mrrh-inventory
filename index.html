@@ -9,6 +9,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
@@ -601,8 +602,8 @@ const TYPE_LEGEND = 'ME = Medical Equipment | MF = Medical Furniture | MI = Medi
 const COND_LEGEND_1 = 'A = Good and in use | B = Functional needs repair | C = Not functional but repairable';
 const COND_LEGEND_2 = 'D = Not functional unrepairable | E = Not installed | F = Missing or stolen';
 
-/* Export: Excel via styled HTML table (.xls) so colors/borders survive in Excel */
-$('exportExcel').addEventListener('click', ()=>{
+/* Export: real .xlsx binary with proper cell styling (works on desktop AND mobile) */
+$('exportExcel').addEventListener('click', async ()=>{
   const depts = getSelectedDepts();
   if(depts.length===0){ toast('Select at least one department/section.'); return; }
   const rows = equipment.filter(e=>depts.includes(e.dept));
@@ -613,37 +614,64 @@ $('exportExcel').addEventListener('click', ()=>{
   const inspector = $('exInspector').value;
   const date = $('exDate').value || new Date().toISOString().slice(0,10);
   const COLS = 15;
-  const td = (txt,extra='') => `<td style="border:1px solid #000; padding:4px 6px; font-family:Calibri; font-size:11pt; ${extra}">${txt||''}</td>`;
-  const cyanRow = (txt) => `<tr><td colspan="${COLS}" style="background:#00FFFF; border:1px solid #000; padding:4px 6px; font-family:Calibri; font-size:11pt;">${txt}</td></tr>`;
 
-  let html = `<html><head><meta charset="UTF-8"></head><body><table style="border-collapse:collapse;">`;
-  html += cyanRow('<b style="font-size:14pt;">MBARARA REGIONAL REFERRAL HOSPITAL</b>');
-  html += cyanRow('Medical Equipment Inventory Form');
-  html += cyanRow('MRRH Biomedical Workshop');
-  html += cyanRow('');
-  html += cyanRow('<b>INVENTORY INFORMATION</b>');
-  html += cyanRow('Health Facility: ' + facility);
-  html += cyanRow('Address: ' + address);
-  html += cyanRow('Inventory Date: ' + date);
-  html += cyanRow("Inspector's Name: " + inspector);
-  html += `<tr><td colspan="${COLS}" style="border:1px solid #000; padding:2px;"></td></tr>`;
-  html += `<tr><td colspan="${COLS}" style="background:#FFFF00; border:1px solid #000; padding:4px 6px; font-family:Calibri; font-size:10pt;"><b>EQUIPMENT TYPE LEGEND:</b> ${TYPE_LEGEND}</td></tr>`;
-  html += `<tr><td colspan="${COLS}" style="background:#00FF00; border:1px solid #000; padding:4px 6px; font-family:Calibri; font-size:10pt;"><b>CONDITION CODES:</b> ${COND_LEGEND_1}</td></tr>`;
-  html += `<tr><td colspan="${COLS}" style="background:#00FF00; border:1px solid #000; padding:4px 6px; font-family:Calibri; font-size:10pt;">${COND_LEGEND_2}</td></tr>`;
-  html += `<tr><td colspan="${COLS}" style="border:1px solid #000; padding:2px;"></td></tr>`;
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Inventory');
+  ws.columns = [{width:8},{width:12},{width:16},{width:10},{width:20},{width:9},{width:14},{width:18},{width:18},{width:6},{width:12},{width:16},{width:9},{width:20},{width:14}];
+
+  const thinBorder = { top:{style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'} };
+  function fillRow(rowNum, text, hexColor, bold){
+    ws.mergeCells(rowNum, 1, rowNum, COLS);
+    const cell = ws.getCell(rowNum, 1);
+    cell.value = text;
+    cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:hexColor} };
+    cell.font = { bold: !!bold, size: 11 };
+    cell.alignment = { vertical:'middle' };
+    for(let c=1;c<=COLS;c++) ws.getCell(rowNum,c).border = thinBorder;
+  }
+
+  let r = 1;
+  fillRow(r++, 'MBARARA REGIONAL REFERRAL HOSPITAL', 'FF00FFFF', true);
+  fillRow(r++, 'Medical Equipment Inventory Form', 'FF00FFFF', false);
+  fillRow(r++, 'MRRH Biomedical Workshop', 'FF00FFFF', false);
+  fillRow(r++, '', 'FF00FFFF', false);
+  fillRow(r++, 'INVENTORY INFORMATION', 'FF00FFFF', true);
+  fillRow(r++, 'Health Facility: ' + facility, 'FF00FFFF', false);
+  fillRow(r++, 'Address: ' + address, 'FF00FFFF', false);
+  fillRow(r++, 'Inventory Date: ' + date, 'FF00FFFF', false);
+  fillRow(r++, "Inspector's Name: " + inspector, 'FF00FFFF', false);
+  r++; // spacer
+  fillRow(r++, 'EQUIPMENT TYPE LEGEND:  ' + TYPE_LEGEND, 'FFFFFF00', true);
+  fillRow(r++, 'CONDITION CODES:  ' + COND_LEGEND_1, 'FF00FF00', true);
+  fillRow(r++, COND_LEGEND_2, 'FF00FF00', false);
+  r++; // spacer
 
   const headers = ['Ref Nr.','Date','Department/Section','Room','Equipment Name','E.q. Type','Model','Serial No.','Manufacturer','Qty','Product Date','Engravement Number','Condition','Comment','User Name'];
-  html += '<tr>' + headers.map(h=>`<td style="background:#404040; color:#fff; border:1px solid #000; padding:5px 6px; font-family:Calibri; font-size:10.5pt;"><b>${h}</b></td>`).join('') + '</tr>';
+  const headerRow = ws.getRow(r);
+  headers.forEach((h,i)=>{
+    const cell = headerRow.getCell(i+1);
+    cell.value = h;
+    cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF404040'} };
+    cell.font = { bold:true, color:{argb:'FFFFFFFF'} };
+    cell.border = thinBorder;
+    cell.alignment = { vertical:'middle' };
+  });
+  r++;
 
   rows.forEach(e=>{
-    html += '<tr>' + [td(e.ref),td(e.date),td(e.dept),td(e.room),td(e.name),td(e.type),td(e.model),td(e.serial),td(e.mfr),td(e.qty),td(e.pdate),td(e.engr),td(e.cond),td(e.comment),td(e.enteredBy)].join('') + '</tr>';
+    const row = ws.getRow(r++);
+    [e.ref,e.date,e.dept,e.room,e.name,e.type,e.model,e.serial,e.mfr,e.qty,e.pdate,e.engr,e.cond,e.comment,e.enteredBy].forEach((val,i)=>{
+      const cell = row.getCell(i+1);
+      cell.value = val;
+      cell.border = thinBorder;
+    });
   });
-  html += '</table></body></html>';
 
-  const blob = new Blob([html], {type:'application/vnd.ms-excel'});
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type:'application/octet-stream'});
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = 'MRRH_Inventory_' + new Date().toISOString().slice(0,10) + '.xls';
+  link.download = 'MRRH_Inventory_' + new Date().toISOString().slice(0,10) + '.xlsx';
   link.click();
   toast('Excel file downloaded.');
 });
