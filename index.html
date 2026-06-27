@@ -330,6 +330,29 @@ async function loadPendingFromIDB(){
   if(pendingSync.length && online) trySync();
 }
 
+/* ---- Background poll: picks up changes made by teammates or directly on the sheet,
+   without anyone needing to manually refresh. Keeps any not-yet-synced local entries visible. ---- */
+let isPolling = false;
+async function pollServer(){
+  if(isPolling) return;
+  isPolling = true;
+  try{
+    const res = await fetch(API_URL + '?api=data');
+    const json = await res.json();
+    if(json.ok){
+      online = true;
+      const localOptimistic = equipment.filter(e => typeof e.ref === 'string' && e.ref.startsWith('local-'));
+      equipment = [...json.data.map(e=>({...e, qty: e.qty || 1})), ...localOptimistic];
+      await idbClearEquipment();
+      for(const item of equipment) await idbPutEquipment(item);
+      renderEqList();
+      if(document.getElementById('panel-dashboard').classList.contains('active')) renderDashboard();
+    }
+  } catch(err){ /* offline or hiccup — next poll retries automatically */ }
+  isPolling = false;
+}
+setInterval(pollServer, 4000); // checks every 4s
+
 /* ---- Push one entry/edit to the server ---- */
 async function pushToServer(payload){
   const res = await fetch(API_URL, {
