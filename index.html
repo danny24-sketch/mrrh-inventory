@@ -303,7 +303,7 @@ if('serviceWorker' in navigator){
 /* ---- Load real data: try the server first, fall back to local cache if offline ---- */
 async function loadFromServer(){
   try{
-    const res = await fetch(API_URL + '?api=data');
+    const res = await fetch(API_URL + '?api=data&t=' + Date.now(), {cache:'no-store'});
     const json = await res.json();
     if(json.ok){
       equipment = json.data.map(e=>({...e, qty: e.qty || 1}));
@@ -337,7 +337,7 @@ async function pollServer(){
   if(isPolling) return;
   isPolling = true;
   try{
-    const res = await fetch(API_URL + '?api=data');
+    const res = await fetch(API_URL + '?api=data&t=' + Date.now(), {cache:'no-store'});
     const json = await res.json();
     if(json.ok){
       online = true;
