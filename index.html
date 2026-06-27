@@ -351,7 +351,7 @@ async function pollServer(){
   } catch(err){ /* offline or hiccup — next poll retries automatically */ }
   isPolling = false;
 }
-setInterval(pollServer, 4000); // checks every 4s
+setInterval(pollServer, 15000); // checks every 15s — safe headroom for ~20 simultaneous users
 
 /* ---- Push one entry/edit to the server ---- */
 async function pushToServer(payload){
